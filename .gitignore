@@ -1,0 +1,48 @@
+Merhaba! Bu kadar çok uyarı mesajı görmek başta korkutucu gelebilir ama endişelenmeyin, bu çok sık karşılaşılan ve çözümü oldukça basit bir durum.
+
+Asıl sorun, node_modules klasörünü Git'e eklemeye çalışmanızdır. Bu klasör, projenizin bağımlılıklarını (kullandığı kütüphaneleri) içerir ve kesinlikle GitHub'a yüklenmemelidir.
+
+Neden node_modules yüklenmemeli?
+
+📦 Çok Büyük Boyutlu: İçerisinde on binlerce dosya barındırır ve projenizin boyutunu yüzlerce megabayt artırır. Bu, yükleme ve indirme sürelerini aşırı uzatır.
+
+🔄 Gereksiz: Projenizi başka birisi indirdiğinde, package.json dosyanız sayesinde sadece npm install komutunu çalıştırarak tüm bu dosyaları kendisi zaten oluşturabilir.
+
+💻 Platforma Bağımlı: İçindeki bazı dosyalar sizin işletim sisteminize (Windows) özel olabilir ve başka bir sistemde (macOS, Linux) projenin çalışmamasına neden olabilir.
+
+🛠️ Adım Adım Çözüm
+Şimdi bu durumu düzeltelim ve bir daha karşılaşmamanızı sağlayalım.
+
+Adım 1: Eklenen Dosyaları Geri Alın
+Öncelikle git add . komutuyla hazırlık alanına (staging area) aldığınız binlerce dosyayı geri alalım. Aşağıdaki komutu projenizin terminalinde çalıştırın:
+
+Bash
+
+git reset
+Bu komut, git add . işlemini geri alacak ve sanki hiç yapmamışsınız gibi temiz bir başlangıç noktasına döndürecektir.
+
+Adım 2: .gitignore Dosyası Oluşturun
+Şimdi Git'e node_modules klasörünü ve diğer gereksiz dosyaları görmezden gelmesini söyleyeceğiz.
+
+Projenizin ana klasöründe (package.json ile aynı dizinde) .gitignore adında bir dosya oluşturun.
+
+Oluşturduğunuz bu dosyanın içine aşağıdaki satırları kopyalayıp yapıştırın ve kaydedin:
+
+# Bağımlılıklar
+/node_modules
+
+# Build dosyaları
+/dist
+/build
+
+# Log dosyaları
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ortam değişkenleri dosyası
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
