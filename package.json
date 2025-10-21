@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "start": "http-server 3dmodels -o -p 8080",
+    "dev": "http-server 3dmodels -o -p 8080"
+  },
+  "dependencies": {
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
