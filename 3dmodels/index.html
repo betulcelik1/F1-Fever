@@ -3,24 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Model Viewer</title>
+    <title>Uygulama</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #22222200; }
-        canvas { display: block; }
-        #info {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            color: rgb(0, 0, 0);
-            font-family: Arial;
-            z-index: 100;
+        body { 
+            margin: 0; 
+            background: #2C2C2C; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        * { box-sizing: border-box; }
+        .layout { display: flex; height: 100vh; width: 100vw; }
+        .sidebar { 
+            width: 280px; 
+            background: #000000;
+            color: #FFFFFF; 
+            padding: 60px 0 0 0; 
+            border-right: 1px solid #333333; 
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            position: relative;
+        }
+        .sidebar.collapsed { 
+            width: 0; 
+            border-right: none;
+        }
+        .sidebar .menu-item {
+            display: block;
+            color: #C4C4C4;
+            text-decoration: none;
+            padding: 16px 24px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            font-weight: 400;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid #1a1a1a;
+            transition: color 0.2s ease;
+            text-align: center;
+            white-space: nowrap;
+            min-width: 280px;
+        }
+        .sidebar .menu-item:hover {
+            color: #FFFFFF;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .sidebar .menu-item.active {
+            color: #FFFFFF;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .viewer { flex: 1; position: relative; overflow: hidden; background: #2C2C2C; }
+        .viewer canvas { display: block; position: absolute; inset: 0; }
+        .menu-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1001;
+            background: transparent;
+            color: #FFFFFF;
+            border: none;
+            padding: 8px;
+            cursor: pointer;
+            font-size: 24px;
+            font-weight: 300;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            width: 40px;
+            height: 40px;
+        }
+        .menu-toggle:hover {
+            opacity: 0.7;
+        }
+        .menu-toggle .hamburger-lines {
+            position: relative;
+            width: 20px;
+            height: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .menu-toggle .hamburger-lines span {
+            display: block;
+            height: 2px;
+            width: 100%;
+            background: #FFFFFF;
+            border-radius: 1px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-origin: center;
+        }
+        .menu-toggle .hamburger-lines span:nth-child(1) {
+            transform: translateY(0) rotate(0deg);
+        }
+        .menu-toggle .hamburger-lines span:nth-child(2) {
+            opacity: 1;
+        }
+        .menu-toggle .hamburger-lines span:nth-child(3) {
+            transform: translateY(0) rotate(0deg);
+        }
+        .sidebar:not(.collapsed) ~ .menu-toggle .hamburger-lines span:nth-child(1) {
+            transform: translateY(7px) rotate(45deg);
+        }
+        .sidebar:not(.collapsed) ~ .menu-toggle .hamburger-lines span:nth-child(2) {
+            opacity: 0;
+        }
+        .sidebar:not(.collapsed) ~ .menu-toggle .hamburger-lines span:nth-child(3) {
+            transform: translateY(-7px) rotate(-45deg);
         }
     </style>
 </head>
 <body>
-    <div id="info">
-        <h3>3D Model Viewer</h3>
-        <p>Mouse: Döndür | Wheel: Yakınlaştır</p>
+    <div class="layout">
+        <aside class="sidebar collapsed" id="sidebar">
+            <a href="#" class="menu-item active">Görünümü Sıfırla</a>
+            <a href="#" class="menu-item">Wireframe Aç/Kapat</a>
+            <a href="#" class="menu-item">Modeli Sıfırla</a>
+            <a href="#" class="menu-item">Ayarlar</a>
+            <a href="#" class="menu-item">Yardım</a>
+        </aside>
+        <main id="viewer" class="viewer">
+        </main>
+        <button class="menu-toggle" id="menuToggle">
+            <div class="hamburger-lines">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </button>
     </div>
 
     <!-- Three.js CDN -->
