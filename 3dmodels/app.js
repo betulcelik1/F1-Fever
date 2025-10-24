@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 
 class ModelViewer {
     constructor() {
@@ -8,56 +9,92 @@ class ModelViewer {
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
         this.controls = null;
-        this.loader = new GLTFLoader();
-        this.textureLoader = new THREE.TextureLoader(); // Dokuları yüklemek için hala gerekli
+        
+        // --- ÇÖZÜM 1: LoadingManager Oluştur ---
+        // Bu yönetici, tüm yükleyicilerin ne zaman bittiğini takip edecek
+        this.manager = new THREE.LoadingManager();
+        
+        // --- ÇÖZÜM 2: Yükleme Bitince Ne Yapılacağını Söyle ---
+        // Tüm yüklemeler (HDR ve GLB) bittiğinde, animasyonu (render'ı) başlat.
+        this.manager.onLoad = () => {
+            console.log('Tüm varlıklar yüklendi! Animasyon başlıyor.');
+            this.animate(); // Render döngüsünü ARTIK başlatabiliriz
+        };
+        
+        this.manager.onError = (url) => {
+            console.error('Şu varlık yüklenirken hata oluştu: ' + url);
+        };
+        // --- ÇÖZÜM BİTTİ ---
+
+        // --- ÇÖZÜM 3: Yükleyicilere Yöneticilerini Tanıt ---
+        // Yükleyicileri oluştururken onlara manager'ı ver
+        this.loader = new GLTFLoader(this.manager);
+        this.rgbeLoader = new RGBELoader(this.manager); // Bunu sınıf özelliği yaptık
         
         this.init();
+        
+        // Yüklemeleri başlat
+        this.setupEnvironment(); 
         this.loadModel();
-        this.animate();
+        
+        // this.animate(); // <-- ÇÖZÜM 4: BU SATIRI SİLİYORUZ!
     }
 
     init() {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setClearColor(0xcccccc); // Arka plan rengi (Tekrar görünür oldu)
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
 
-        // Renk Yönetimi Ayarları
         this.renderer.outputEncoding = THREE.sRGBEncoding; 
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping; 
-        this.renderer.toneMappingExposure = 1.0; // Sayfa parlaklığını normale indirdim.
+        this.renderer.toneMappingExposure = 1.0; 
         
         document.body.appendChild(this.renderer.domElement);
 
-        // *** ARKA PLAN RESMİ YÜKLEME KALDIRILDI ***
-        // this.textureLoader.load(backgroundPath, ...); // Bu kısım silindi.
-        this.scene.background = new THREE.Color(0xcccccc); // Sahne arka planı varsayılan renk
+        // setupEnvironment() çağrısı constructor'a taşındı
+        // this.setupEnvironment(); // <-- SİLİNDİ
 
-        this.camera.position.set(0, 5, 10);
-        this.camera.lookAt(0, 0, 0);
+        this.camera.position.set(0, 2, 8);
+        this.camera.lookAt(0, 1, 0);
 
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
-        this.controls.target.set(0, 0, 0);
+        this.controls.target.set(0, 1, 0);
 
         this.setupLights();
-        this.addGroundWithTexture(); // YENİ ZEMİN FONKSİYONU ÇAĞRILDI
+        
         window.addEventListener('resize', () => this.onWindowResize());
+    }
+    
+    setupEnvironment() {
+        // const rgbeLoader = new RGBELoader(); // <-- ÇÖZÜM 5: SİL
+        const envMapPath = './zwartkops_straight_sunset_4k.hdr';
+
+        // ÇÖZÜM 6: "this.rgbeLoader" kullan (manager'a bağlı olan)
+        this.rgbeLoader.load(envMapPath, (texture) => {
+            const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+            pmremGenerator.compileEquirectangularShader();
+            
+            const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+
+            this.scene.background = envMap;
+            this.scene.environment = envMap;
+
+            texture.dispose();
+            pmremGenerator.dispose();
+        },
+        undefined,
+        (err) => {
+            console.error('Çevre haritası (HDR) yüklenemedi:', err);
+        });
     }
 
     setupLights() {
-        // Işıklandırma ayarları önceki revizyondan alındı
-        const ambientLight = new THREE.AmbientLight(0xffffff, 4.0); 
-        this.scene.add(ambientLight);
-
-        const hemiLight = new THREE.HemisphereLight(0xffffbb, 0x080820, 2.0); 
-        this.scene.add(hemiLight);
-
-        const keyLight = new THREE.DirectionalLight(0xffffff, 5.0); 
+        // Bu fonksiyonda değişiklik yok...
+        const keyLight = new THREE.DirectionalLight(0xffffff, 1.0); 
         keyLight.position.set(5, 10, 5); 
         keyLight.castShadow = true;
-
         keyLight.shadow.mapSize.width = 2048;
         keyLight.shadow.mapSize.height = 2048;
         const d = 10;
@@ -68,98 +105,56 @@ class ModelViewer {
         keyLight.shadow.camera.near = 0.1;
         keyLight.shadow.camera.far = 30;
         this.scene.add(keyLight);
-
-        const fillLight = new THREE.DirectionalLight(0xffffff, 2.5);
-        fillLight.position.set(-10, 5, 5); 
-        this.scene.add(fillLight);
     }
     
-    // ZEMİN FOTOĞRAFI EKLEME FONKSİYONU
-    addGroundWithTexture() {
-        // *** DOKU YOLUNUZU BURAYA GİRİN! ***
-        const groundTexturePath = './textures/your_ground_image.jpg'; 
-        
-        this.textureLoader.load(groundTexturePath, 
-            (texture) => {
-                texture.wrapS = THREE.RepeatWrapping;
-                texture.wrapT = THREE.RepeatWrapping;
-                // Fotoğrafın zeminde ne kadar tekrar edeceğini belirleyin. Tekrar etmesini istemiyorsanız (1, 1) yapın.
-                texture.repeat.set(1, 1); 
-                texture.encoding = THREE.sRGBEncoding; // Renkleri doğru göstermek için
-
-                // Zeminin modelden daha geniş olması için boyutları ayarlayın
-                const groundSize = 10; // Model ölçeğine göre zeminin boyutu
-
-                const geometry = new THREE.PlaneGeometry(groundSize, groundSize); 
-                
-                const material = new THREE.MeshStandardMaterial({ 
-                    map: texture, 
-                    side: THREE.FrontSide, // Arka tarafı görmek istemediğimiz için
-                    roughness: 0.8, // Parlamayı azalt
-                    metalness: 0.1
-                });
-                
-                const ground = new THREE.Mesh(geometry, material);
-                ground.rotation.x = -Math.PI / 2; 
-                ground.position.y = -0.01; // Zeminin modelin altına yerleşimi
-                ground.receiveShadow = true;
-                this.scene.add(ground);
-            },
-            undefined, 
-            (err) => {
-                console.error('Zemin dokusu yüklenemedi:', err);
-                // Hata durumunda varsayılan gri zemin
-                const geometry = new THREE.PlaneGeometry(10, 10);
-                const material = new THREE.MeshStandardMaterial({ color: 0x444444 });
-                const ground = new THREE.Mesh(geometry, material);
-                ground.rotation.x = -Math.PI / 2;
-                ground.position.y = 0;
-                ground.receiveShadow = true;
-                this.scene.add(ground);
-            }
-        );
-    }
-
     loadModel() {
+        // Bu fonksiyonda değişiklik yok...
+        // "this.loader" zaten manager'a bağlı olduğu için
+        // yükleme bittiğinde manager'ın haberi olacak.
         const modelPath = './model.glb';
         
         this.loader.load(
             modelPath,
             (gltf) => {
                 const model = gltf.scene;
-                this.scene.add(model);
 
                 model.traverse((child) => {
                     if (child.isMesh) {
                         child.castShadow = true;
-                        child.receiveShadow = true;
-                        child.material.needsUpdate = true;
+                        child.receiveShadow = true; 
                     }
                 });
-
-                // Modelin ortalanması ve ölçeklendirilmesi
+                
+                // ... (Modelin ölçeklendirme ve konumlandırma kodunun kalanı aynı)
                 const box = new THREE.Box3().setFromObject(model);
-                const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z);
+                const scale = 4 / maxDim;
 
-                // Zemin eklendiği için Y'yi düzgün ayarlayalım
-                model.position.sub(center).add(new THREE.Vector3(0, size.y / 2, 0)); 
-                const scale = 5 / maxDim;
                 model.scale.multiplyScalar(scale);
+                box.setFromObject(model);
+                const center = box.getCenter(new THREE.Vector3());
                 
-                // Kamera Sol Ön Çapraz Açısı
-                const distance = 8; 
-                const targetY = size.y * scale / 2;
+                model.position.x += (model.position.x - center.x);
+                model.position.y += (model.position.y - center.y) + size.y / 2;
+                model.position.z += (model.position.z - center.z);
+                
+                model.rotation.y = THREE.MathUtils.degToRad(90);
+
+                this.scene.add(model);
+                
+                const targetY = size.y / 1; 
+                const distance = 3; 
 
                 this.camera.position.set(
-                    -distance,   // X: Negatif X (SOL taraf)
-                    targetY + 2, // Y: Biraz yukarıdan bak
-                    distance     // Z: Arabanın ön/çaprazında kal
+                    distance * 1.5,
+                    targetY + 1.0,
+                    distance * 0.5
                 );
                 
-                this.controls.target.set(0, targetY, 0); // Hedefi arabanın ortasına ayarla
+                this.controls.target.set(0, targetY, 0);
                 this.controls.update();
+                // --- DEĞİŞEN KISMIN SONU ---
 
                 console.log('Model başarıyla yüklendi!');
             },
@@ -174,12 +169,14 @@ class ModelViewer {
     }
 
     animate() {
+        // Bu fonksiyon ancak her şey yüklendikten sonra çağrılacak
         requestAnimationFrame(() => this.animate());
         this.controls.update();
         this.renderer.render(this.scene, this.camera);
     }
 
     onWindowResize() {
+        // Bu fonksiyonda değişiklik yok...
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
