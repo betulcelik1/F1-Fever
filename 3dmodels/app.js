@@ -69,7 +69,7 @@ class ModelViewer {
     
     setupEnvironment() {
         // const rgbeLoader = new RGBELoader(); // <-- ÇÖZÜM 5: SİL
-        const envMapPath = './zwartkops_straight_sunset_4k.hdr';
+        const envMapPath = './map.hdr';
 
         // ÇÖZÜM 6: "this.rgbeLoader" kullan (manager'a bağlı olan)
         this.rgbeLoader.load(envMapPath, (texture) => {
