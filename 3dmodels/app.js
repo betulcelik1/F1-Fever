@@ -10,73 +10,92 @@ class ModelViewer {
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.controls = null;
         
-        // LoadingManager to coordinate HDR and GLB loading
+        // LoadingManager
         this.manager = new THREE.LoadingManager();
-        
-        // Setup loading manager callbacks
         this.manager.onLoad = () => {
             console.log('Tüm varlıklar yüklendi! Animasyon başlıyor.');
-            this.animate(); // Start render loop only after everything is loaded
+            this.animate(); 
         };
-        
         this.manager.onError = (url) => {
             console.error('Şu varlık yüklenirken hata oluştu: ' + url);
         };
         
-        // Initialize loaders with manager
+        // Loaders
         this.loader = new GLTFLoader(this.manager);
-        this.rgbeLoader = new RGBELoader(this.manager); // HDR yükleme artık manager'a bağlı
-        this.textureLoader = new THREE.TextureLoader(); // Dokuları yüklemek için hala gerekli
-        this.carGroup = null; // Araç grubunu referans olarak sakla
-        this.model = null; // Model referansını sakla
-        this.wheels = []; // Tekerlekleri referans olarak sakla
-        this.wheelRotation = 0; // Tekerlek dönüş açısı
+        this.rgbeLoader = new RGBELoader(this.manager);
+        this.textureLoader = new THREE.TextureLoader();
+        
+        // Model referansları
+        this.carGroup = null; 
+        this.model = null; 
+        this.wheels = []; 
+        this.wheelRotation = 0;
         
         // Model yönetim sistemi
-        this.models = []; // Tüm modelleri sakla
-        this.currentModelIndex = 0; // Şu anki model indeksi
+        this.models = []; 
+        this.currentModelIndex = 0; 
         this.modelConfigs = [
             {
                 name: 'Formula 1',
                 path: './model.glb',
                 description: 'Formula 1 Yarış Aracı'
             },
-            // Gelecekte daha fazla model ekleyebiliriz
-            // {
-            //     name: 'Spor Araba',
-            //     path: './sport_car.glb',
-            //     description: 'Spor Araba Modeli'
-            // }
         ];
+
+        // --- YENİ: Teams Sayfası (Carousel) için Değişkenler ---
+        this.viewerElement = document.getElementById('viewer');
+        this.teamsPageElement = document.getElementById('teams-page-container');
+        this.teamsGridElement = document.querySelector('.teams-grid'); // Kayan şerit
+        
+        // Dinamik kart ID'leri
+        this.teamCards = [
+            document.getElementById('team-card-1'),
+            document.getElementById('team-card-2'),
+            document.getElementById('team-card-3'), 
+            document.getElementById('team-card-4')  
+        ];
+        
+        // Kart konteynerlarını da alıyoruz (ölçekleme için)
+        this.teamCardContainers = [
+             document.getElementById('team-container-1'),
+             document.getElementById('team-container-2'),
+             document.getElementById('team-container-3'),
+             document.getElementById('team-container-4')
+        ];
+        
+        // Carousel durumu
+        this.currentTeamIndex = 0; // Hangi kartın merkezde olduğunu takip et
+        this.isTeamScrolling = false; // Scroll "debounce" (hızlı kaydırmayı engelleme) için
+        
+        // Sidebar buton referansları
+        this.teamsSidebarButton = null;
+        this.modelSidebarButtons = [];
         
         this.init();
         
-        // Start loading processes
+        // Yükleme işlemlerini başlat
         this.setupEnvironment();
         this.loadCurrentModel();
         this.setupModelControls();
-        
-        // Remove this.animate() call - it will be called by manager.onLoad
     }
 
     init() {
-        const viewer = document.getElementById('viewer');
-        const width = viewer ? viewer.clientWidth : window.innerWidth;
-        const height = viewer ? viewer.clientHeight : window.innerHeight;
+        if (!this.viewerElement) {
+            console.error('HATA: "viewer" ID\'li element bulunamadı!');
+            return;
+        }
+
+        const width = this.viewerElement.clientWidth;
+        const height = this.viewerElement.clientHeight;
+        
         this.renderer.setSize(width, height);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
-
         this.renderer.outputEncoding = THREE.sRGBEncoding; 
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping; 
         this.renderer.toneMappingExposure = 1.0;
         
-        if (viewer) {
-            viewer.appendChild(this.renderer.domElement);
-        } else {
-            document.body.appendChild(this.renderer.domElement);
-        }
-
+        this.viewerElement.appendChild(this.renderer.domElement);
 
         this.camera.position.set(0, 2, 8);
         this.camera.lookAt(0, 1, 0);
@@ -85,9 +104,7 @@ class ModelViewer {
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
         this.controls.target.set(0, 1, 0);
-        
-        // Scroll ile öne-arkaya hareket
-        this.controls.enableZoom = false; // Zoom'u kapat
+        this.controls.enableZoom = true; 
         this.controls.mouseButtons = {
             LEFT: THREE.MOUSE.ROTATE,
             MIDDLE: THREE.MOUSE.DOLLY,
@@ -95,24 +112,57 @@ class ModelViewer {
         };
 
         this.setupLights();
-        this.addGroundWithTexture(); // YENİ ZEMİN FONKSİYONU ÇAĞRILDI
+        this.addGroundWithTexture();
         this.setupSidebarToggle();
-        this.setupScrollMovement();
+        
+        // Scroll hareketlerini ayır
+        this.setupModelScrollMovement(); // Model için scroll
+        
+        // DEĞİŞTİ: Teams sayfası scroll mantığı tamamen değişti
+        this.setupTeamsPageScroll();     
+        
+        // YENİ: Kartlara tıklama (döndürme) özelliği ekle
+        this.setupTeamCardClickListeners();
+        
         window.addEventListener('resize', () => this.onWindowResize());
+        
+        // Başlangıçta 3D Görüntüleyiciyi göster
+        this.showViewerPage();
+    }
+    
+    // 3D Görüntüleyici sayfasını göster
+    showViewerPage() {
+        if (this.viewerElement) this.viewerElement.style.display = 'block';
+        if (this.teamsPageElement) this.teamsPageElement.style.display = 'none';
+        
+        // Aktif butonları güncelle
+        this.modelSidebarButtons.forEach((btn, index) => {
+            btn.classList.toggle('active', index === this.currentModelIndex);
+        });
+        if (this.teamsSidebarButton) this.teamsSidebarButton.classList.remove('active');
+    }
+    
+    // Teams sayfasını göster
+    showTeamsPage() {
+        if (this.viewerElement) this.viewerElement.style.display = 'none';
+        if (this.teamsPageElement) this.teamsPageElement.style.display = 'block';
+        
+        // Aktif butonları güncelle
+        this.modelSidebarButtons.forEach(btn => btn.classList.remove('active'));
+        if (this.teamsSidebarButton) this.teamsSidebarButton.classList.add('active');
+        
+        // YENİ: Teams sayfası gösterildiğinde kartların pozisyonunu hesapla
+        this.updateTeamCardStates();
     }
 
     setupLights() {
-        // Işıklandırma ayarları önceki revizyondan alındı
         const ambientLight = new THREE.AmbientLight(0xffffff, 4.0); 
         this.scene.add(ambientLight);
-
         const hemiLight = new THREE.HemisphereLight(0xffffbb, 0x080820, 2.0); 
         this.scene.add(hemiLight);
-
         const keyLight = new THREE.DirectionalLight(0xffffff, 5.0); 
         keyLight.position.set(5, 10, 5); 
         keyLight.castShadow = true;
-
         keyLight.shadow.mapSize.width = 2048;
         keyLight.shadow.mapSize.height = 2048;
         const d = 10;
@@ -123,66 +173,46 @@ class ModelViewer {
         keyLight.shadow.camera.near = 0.1;
         keyLight.shadow.camera.far = 30;
         this.scene.add(keyLight);
-
         const fillLight = new THREE.DirectionalLight(0xffffff, 2.5);
         fillLight.position.set(-10, 5, 5); 
         this.scene.add(fillLight);
     }
-
     setupEnvironment() {
         const envMapPath = './map.hdr';
-
         this.rgbeLoader.load(envMapPath, (texture) => {
             const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
             pmremGenerator.compileEquirectangularShader();
-            
             const envMap = pmremGenerator.fromEquirectangular(texture).texture;
-
             this.scene.background = envMap;
             this.scene.environment = envMap;
-
             texture.dispose();
             pmremGenerator.dispose();
-            console.log('HDR çevre haritası başarıyla yüklendi!');
         },
         undefined,
         (err) => {
             console.warn('HDR çevre haritası yüklenemedi, varsayılan ışıklandırma kullanılıyor:', err);
-            // HDR yüklenemezse varsayılan ışıklandırmayı kullan
             this.setupDefaultEnvironment();
         });
     }
-
     setupDefaultEnvironment() {
-        // HDR yoksa varsayılan çevre ışıklandırması
         const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
-        
-        // Basit gradient çevre haritası oluştur
         const size = 64;
         const canvas = document.createElement('canvas');
         canvas.width = size * 2;
         canvas.height = size;
         const context = canvas.getContext('2d');
-        
         const gradient = context.createLinearGradient(0, 0, 0, size);
-        gradient.addColorStop(0, '#87CEEB'); // Açık mavi (gökyüzü)
-        gradient.addColorStop(1, '#E0E0E0'); // Açık gri (yer)
-        
+        gradient.addColorStop(0, '#87CEEB');
+        gradient.addColorStop(1, '#E0E0E0');
         context.fillStyle = gradient;
         context.fillRect(0, 0, size * 2, size);
-        
         const texture = new THREE.CanvasTexture(canvas);
         const envMap = pmremGenerator.fromEquirectangular(texture).texture;
-        
         this.scene.background = envMap;
         this.scene.environment = envMap;
-        
         texture.dispose();
         pmremGenerator.dispose();
-        
-        console.log('Varsayılan çevre ışıklandırması uygulandı');
     }
-
     setupSidebarToggle() {
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebar');
@@ -194,20 +224,16 @@ class ModelViewer {
         }
     }
 
-    setupModelControls() {
-        // Model değiştirme kontrollerini ekle
-        this.addModelButtons();
+     setupModelControls() {
+        this.addModelButtons(); 
         this.setupKeyboardControls();
     }
-
     addModelButtons() {
-        // Sidebar'a model değiştirme butonları ekle
         const sidebar = document.getElementById('sidebar');
         if (sidebar) {
-            // Mevcut menü öğelerini temizle
-            sidebar.innerHTML = '';
+            sidebar.innerHTML = ''; 
+            this.modelSidebarButtons = []; 
             
-            // Model seçimi için başlık
             const modelTitle = document.createElement('div');
             modelTitle.className = 'menu-item';
             modelTitle.style.fontWeight = 'bold';
@@ -215,23 +241,35 @@ class ModelViewer {
             modelTitle.textContent = 'Model Seçimi';
             sidebar.appendChild(modelTitle);
             
-            // Her model için buton oluştur
             this.modelConfigs.forEach((config, index) => {
                 const button = document.createElement('a');
                 button.href = '#';
-                button.className = 'menu-item';
-                if (index === this.currentModelIndex) {
-                    button.classList.add('active');
-                }
+                button.className = 'menu-item model-button'; 
+                
                 button.textContent = config.name;
                 button.addEventListener('click', (e) => {
                     e.preventDefault();
                     this.switchToModel(index);
+                    this.showViewerPage(); 
                 });
                 sidebar.appendChild(button);
+                this.modelSidebarButtons.push(button); 
             });
+
+            if (this.modelSidebarButtons[this.currentModelIndex]) {
+                 this.modelSidebarButtons[this.currentModelIndex].classList.add('active');
+            }
             
-            // Diğer menü öğeleri
+            this.teamsSidebarButton = document.createElement('a');
+            this.teamsSidebarButton.href = '#';
+            this.teamsSidebarButton.className = 'menu-item teams-button'; 
+            this.teamsSidebarButton.textContent = 'Teams'; 
+            this.teamsSidebarButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.showTeamsPage(); 
+            });
+            sidebar.appendChild(this.teamsSidebarButton);
+            
             const otherItems = [
                 { text: 'Görünümü Sıfırla', action: () => this.resetView() },
                 { text: 'Wireframe Aç/Kapat', action: () => this.toggleWireframe() },
@@ -247,16 +285,20 @@ class ModelViewer {
                 menuItem.textContent = item.text;
                 menuItem.addEventListener('click', (e) => {
                     e.preventDefault();
-                    item.action();
+                    if (this.viewerElement.style.display === 'block') {
+                        item.action();
+                    } else {
+                        console.warn('Bu işlem sadece 3D Model Görüntüleyicide aktiftir.');
+                    }
                 });
                 sidebar.appendChild(menuItem);
             });
         }
     }
-
     setupKeyboardControls() {
-        // Klavye kontrolleri ekle
         document.addEventListener('keydown', (e) => {
+            if (this.viewerElement.style.display !== 'block') return;
+            
             switch(e.key) {
                 case 'ArrowLeft':
                     this.previousModel();
@@ -271,147 +313,189 @@ class ModelViewer {
             }
         });
     }
-
-    setupScrollMovement() {
+    setupModelScrollMovement() {
         let scrollDelta = 0;
         const scrollSpeed = 0.5;
         let lastScrollTime = 0;
         
         this.renderer.domElement.addEventListener('wheel', (event) => {
-            event.preventDefault();
+            if (this.teamsPageElement && this.teamsPageElement.style.display === 'block') {
+                return;
+            }
             
-            console.log('Scroll event algılandı:', {
-                deltaY: event.deltaY,
-                carGroup: !!this.carGroup,
-                wheelsCount: this.wheels.length
-            });
+            event.preventDefault();
             
             const currentTime = Date.now();
             const deltaTime = currentTime - lastScrollTime;
             lastScrollTime = currentTime;
             
-            // Scroll yönüne göre modeli hareket ettir
             if (event.deltaY > 0) {
-                // Aşağı scroll - modeli arkaya hareket ettir
                 scrollDelta += scrollSpeed;
             } else {
-                // Yukarı scroll - modeli öne hareket ettir
                 scrollDelta -= scrollSpeed;
             }
             
-            // Modeli hareket ettir - araç 90 derece döndürüldüğü için X ekseni boyunca hareket etmeli
             if (this.model) {
                 this.model.position.x = scrollDelta;
-                console.log('Model hareket ettirildi, X pozisyonu:', scrollDelta);
-                
-                // Tekerlekleri döndür
                 this.rotateWheels(event.deltaY, deltaTime);
-            } else {
-                console.log('Model bulunamadı!');
+            }
+        }, { passive: false }); 
+    }
+    rotateWheels(scrollDirection, deltaTime) {
+        const rotationDirection = scrollDirection > 0 ? 1 : -1;
+        const rotationSpeed = 0.3 * rotationDirection; 
+        
+        this.wheels.forEach((wheel) => {
+            if (wheel && wheel.isMesh) {
+                wheel.rotation.x += rotationSpeed;
             }
         });
     }
     
-    rotateWheels(scrollDirection, deltaTime) {
-        console.log('Tekerlek dönüşü çağrıldı:', {
-            scrollDirection: scrollDirection,
-            wheelsCount: this.wheels.length,
-            wheels: this.wheels
-        });
-        
-        // Scroll yönüne göre tekerlek dönüş yönünü belirle
-        const rotationDirection = scrollDirection > 0 ? 1 : -1;
-        const rotationSpeed = 0.3 * rotationDirection; // Dönüş hızını daha da artırdım
-        
-        // Sadece tekerlekleri döndür, gövdeyi değil
-        this.wheels.forEach((wheel, index) => {
-            if (wheel && wheel.isMesh) {
-                // Sadece X ekseni etrafında döndür (tekerlek dönüşü)
-                wheel.rotation.x += rotationSpeed;
-                console.log(`Tekerlek ${index + 1} (${wheel.name}) döndürüldü:`, {
-                    name: wheel.name,
-                    rotation: wheel.rotation,
-                    position: wheel.position
+    
+    // DEĞİŞTİ: Teams sayfası scroll mantığı (Yatay Carousel)
+    setupTeamsPageScroll() {
+        if (!this.teamsPageElement) {
+            console.warn('Teams sayfası elementi (teams-page-container) bulunamadı.');
+            return;
+        }
+
+        // Teams sayfası kapsayıcısını dinle
+        this.teamsPageElement.addEventListener('wheel', (event) => {
+            event.preventDefault(); // Dikey kaydırmayı ve sayfa yenilemeyi engelle
+            
+            // Eğer animasyon devam ediyorsa yeni scroll'u yoksay (Debounce)
+            if (this.isTeamScrolling) return; 
+            
+            this.isTeamScrolling = true;
+            // CSS transition süresiyle (800ms) eşleşen bir bekleme süresi
+            setTimeout(() => { this.isTeamScrolling = false; }, 800); 
+
+            if (event.deltaY > 0) {
+                // Scroll aşağı -> sonraki kart
+                this.currentTeamIndex++;
+            } else {
+                // Scroll yukarı -> önceki kart
+                this.currentTeamIndex--;
+            }
+
+            // Index'i sınırlar içinde tut
+            if (this.currentTeamIndex < 0) {
+                this.currentTeamIndex = 0;
+            }
+            if (this.currentTeamIndex >= this.teamCards.length) {
+                this.currentTeamIndex = this.teamCards.length - 1;
+            }
+
+            // Kartların pozisyonunu ve durumunu güncelle
+            this.updateTeamCardStates();
+            
+        }, { passive: false }); // preventDefault için
+    }
+
+    // YENİ: Kartlara tıklama (döndürme) özelliği
+    setupTeamCardClickListeners() {
+        this.teamCardContainers.forEach((container, index) => {
+            if (container) {
+                container.addEventListener('click', () => {
+                    // Sadece aktif (merkezdeki) kartın dönmesine izin ver
+                    if (index === this.currentTeamIndex) {
+                        // 'is-flipped' sınıfını .team-card elementine ekle/kaldır
+                        this.teamCards[index].classList.toggle('is-flipped');
+                    } else {
+                        // Eğer aktif olmayan bir karta tıklandıysa, o kartı merkeze getir
+                        this.currentTeamIndex = index;
+                        this.updateTeamCardStates();
+                    }
                 });
             }
         });
     }
     
-    
-    
-    addGroundWithTexture() {
-        // Zemin dokusu olmadan basit zemin oluştur
-        const groundSize = 20; // Zemin boyutu
-        const geometry = new THREE.PlaneGeometry(groundSize, groundSize);
+    // YENİ: Kartların pozisyonunu (translateX) ve durumunu (inactive) güncelleyen fonksiyon
+    updateTeamCardStates() {
+        if (!this.teamsGridElement || !this.teamCardContainers.length) return;
+
+        // 1. Gerekli pozisyonu (TranslateX) hesapla
+        const cardElement = this.teamCardContainers[this.currentTeamIndex];
+        if (!cardElement) return;
         
-        // Basit gri zemin materyali (görünmez)
-        const material = new THREE.MeshStandardMaterial({ 
-            color: 0x333333,
-            transparent: true,
-            opacity: 0.0, // Tamamen şeffaf
-            side: THREE.FrontSide
+        const cardWidth = cardElement.offsetWidth;
+        // CSS'teki margin (0 25px) ile eşleşmeli
+        const cardMargin = 25; 
+        const cardTotalWidth = cardWidth + (cardMargin * 2);
+        
+        // Kartı ortalamak için gereken pozisyon:
+        // (Ekran genişliği / 2) - (Kart genişliği / 2)
+        const centerOffset = (this.teamsPageElement.clientWidth / 2) - (cardWidth / 2);
+        
+        // Hedef X pozisyonu:
+        // Ortalanmış pozisyon - (önceki kartların toplam genişliği)
+        const targetTranslateX = centerOffset - (this.currentTeamIndex * cardTotalWidth);
+        
+        // teams-grid elementinin pozisyonunu CSS transition ile güncelle
+        this.teamsGridElement.style.transform = `translateX(${targetTranslateX}px)`;
+
+        // 2. Aktif/İnaktif sınıflarını güncelle (küçültme/soluklaştırma)
+        this.teamCardContainers.forEach((container, index) => {
+            if (container) {
+                if (index === this.currentTeamIndex) {
+                    // Bu aktif kart
+                    container.classList.remove('inactive');
+                } else {
+                    // Bunlar yandaki (inaktif) kartlar
+                    container.classList.add('inactive');
+                    // Yandan geçerken dönük kart varsa düzelt
+                    this.teamCards[index].classList.remove('is-flipped'); 
+                }
+            }
         });
-        
-        const ground = new THREE.Mesh(geometry, material);
-        ground.rotation.x = -Math.PI / 2; // Yatay zemin
-        ground.position.y = -0.01; // Modelin altında
-        ground.receiveShadow = true;
-        this.scene.add(ground);
-        
-        console.log('Zemin eklendi (görünmez)');
     }
 
 
+    addGroundWithTexture() {
+        const groundSize = 20;
+        const geometry = new THREE.PlaneGeometry(groundSize, groundSize);
+        const material = new THREE.MeshStandardMaterial({ 
+            color: 0x333333,
+            transparent: true,
+            opacity: 0.0, 
+            side: THREE.FrontSide
+        });
+        const ground = new THREE.Mesh(geometry, material);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.01;
+        ground.receiveShadow = true;
+        this.scene.add(ground);
+    }
     loadCurrentModel() {
         const currentConfig = this.modelConfigs[this.currentModelIndex];
         this.loadModel(currentConfig.path);
     }
-
     loadModel(modelPath) {
-        
         this.loader.load(
             modelPath,
             (gltf) => {
                 const model = gltf.scene;
-                this.model = model; // Model referansını sakla
-                
-                // Model doğrudan sahneye ekleniyor
-
-                // Tekerlekleri bul ve sakla
+                this.model = model; 
                 this.wheels = [];
-                console.log('Tüm objeler listeleniyor:');
                 
                 model.traverse((child) => {
                     if (child.isMesh) {
-                        console.log('Mesh bulundu:', {
-                            name: child.name,
-                            position: child.position,
-                            rotation: child.rotation,
-                            scale: child.scale
-                        });
-                        
                         child.castShadow = true;
                         child.receiveShadow = true;
                         child.material.needsUpdate = true;
                         
-                        // Tekerlek tespiti - sadece isim kontrolü
                         const name = child.name ? child.name.toLowerCase() : '';
                         if (name.includes('wheel') || name.includes('tekerlek') || name.includes('tire')) {
                             this.wheels.push(child);
-                            console.log('✅ Tekerlek bulundu:', child.name);
                         } else {
-                            console.log('❌ Tekerlek değil:', child.name);
-                            
-                            // Araç gövdesi için dönüşü sabitle
                             if (name.includes('body') || name.includes('baked')) {
-                                console.log('🔒 Araç gövdesi dönüşü sabitlendi:', child.name);
-                                // Dönüşü sıfırla ve sabitle
                                 child.rotation.set(0, 0, 0);
                                 child.userData.lockedRotation = true;
                             }
                         }
                         
-                        // Malzeme ayarları
                         if (child.material) {
                             child.material.envMapIntensity = 0.3;
                             child.material.needsUpdate = true;
@@ -419,7 +503,6 @@ class ModelViewer {
                     }
                 });
 
-                // Modelin ölçeklendirme ve konumlandırma
                 const box = new THREE.Box3().setFromObject(model);
                 const size = box.getSize(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z);
@@ -430,7 +513,7 @@ class ModelViewer {
                 const center = box.getCenter(new THREE.Vector3());
                 
                 model.position.x += (model.position.x - center.x);
-                model.position.y += (model.position.y - center.y) + size.y / 2;
+                model.position.y += (model.position.y - center.y);
                 model.position.z += (model.position.z - center.z);
                 
                 model.rotation.y = THREE.MathUtils.degToRad(90);
@@ -448,74 +531,71 @@ class ModelViewer {
                 
                 this.controls.target.set(0, targetY, 0);
                 this.controls.update();
-
-                console.log('Model başarıyla yüklendi!');
-                console.log('Tespit edilen tekerlek sayısı:', this.wheels.length);
-                
             },
             (progress) => {
                 console.log('Yükleme: %' + (progress.loaded / progress.total * 100).toFixed(2));
             },
             (error) => {
                 console.error('Model yüklenemedi:', error);
-                alert('Model yüklenemedi! Dosya yolunu kontrol edin.');
             }
         );
     }
 
-
+    
     animate() {
         requestAnimationFrame(() => this.animate());
-        this.controls.update();
         
-        // Araç gövdesinin dönüşünü engelle
-        this.scene.traverse((child) => {
-            if (child.isMesh && child.userData.lockedRotation) {
-                child.rotation.set(0, 0, 0);
-            }
-        });
-        
-        // Tekerlekleri sürekli döndür (isteğe bağlı)
-        this.updateWheelRotation();
-        
-        this.renderer.render(this.scene, this.camera);
+        // 3D Görüntüleyici render'ı
+        if (this.viewerElement && this.viewerElement.style.display === 'block') {
+            this.controls.update();
+            
+            this.scene.traverse((child) => {
+                if (child.isMesh && child.userData.lockedRotation) {
+                    child.rotation.set(0, 0, 0);
+                }
+            });
+            
+            this.renderer.render(this.scene, this.camera);
+        }
+
+        // Teams sayfası animasyonu artık CSS transition'ları tarafından yönetiliyor.
+        // Bu nedenle 'animate' içinde özel bir kod gerekmiyor.
     }
     
-    updateWheelRotation() {
-        // Bu fonksiyon şu an kullanılmıyor, tekerlek dönüşü scroll sırasında yapılıyor
-        // İleride sürekli dönüş isterseniz bu fonksiyonu aktif edebilirsiniz
-    }
 
     onWindowResize() {
-        const viewer = document.getElementById('viewer');
-        const width = viewer ? viewer.clientWidth : window.innerWidth;
-        const height = viewer ? viewer.clientHeight : window.innerHeight;
-        this.camera.aspect = width / height;
-        this.camera.updateProjectionMatrix();
-        this.renderer.setSize(width, height);
+        if (this.viewerElement && this.viewerElement.style.display === 'block') {
+            const width = this.viewerElement.clientWidth;
+            const height = this.viewerElement.clientHeight;
+            
+            this.camera.aspect = width / height;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(width, height);
+        }
+        
+        // YENİ: Ekran yeniden boyutlandırıldığında carousel'in ortalamasını güncelle
+        if (this.teamsPageElement && this.teamsPageElement.style.display === 'block') {
+             this.updateTeamCardStates();
+        }
     }
 
-    // Model değiştirme fonksiyonları
     switchToModel(index) {
         if (index >= 0 && index < this.modelConfigs.length) {
             this.currentModelIndex = index;
             this.removeCurrentModel();
             this.loadCurrentModel();
-            this.updateModelButtons();
+            this.updateModelButtonsActiveState(); 
             console.log(`Model değiştirildi: ${this.modelConfigs[index].name}`);
         }
     }
-
     nextModel() {
         const nextIndex = (this.currentModelIndex + 1) % this.modelConfigs.length;
         this.switchToModel(nextIndex);
     }
-
     previousModel() {
         const prevIndex = this.currentModelIndex === 0 ? this.modelConfigs.length - 1 : this.currentModelIndex - 1;
         this.switchToModel(prevIndex);
     }
-
     removeCurrentModel() {
         if (this.model) {
             this.scene.remove(this.model);
@@ -523,17 +603,10 @@ class ModelViewer {
             this.wheels = [];
         }
     }
-
-    updateModelButtons() {
-        const sidebar = document.getElementById('sidebar');
-        if (sidebar) {
-            const buttons = sidebar.querySelectorAll('.menu-item');
-            buttons.forEach((button, index) => {
-                if (index > 0 && index <= this.modelConfigs.length) { // İlk öğe başlık
-                    button.classList.toggle('active', index - 1 === this.currentModelIndex);
-                }
-            });
-        }
+    updateModelButtonsActiveState() {
+        this.modelSidebarButtons.forEach((button, index) => {
+            button.classList.toggle('active', index === this.currentModelIndex);
+        });
     }
 
     resetView() {
@@ -543,7 +616,6 @@ class ModelViewer {
         this.controls.update();
         console.log('Görünüm sıfırlandı');
     }
-
     toggleWireframe() {
         if (this.model) {
             this.model.traverse((child) => {
@@ -554,11 +626,10 @@ class ModelViewer {
             console.log('Wireframe değiştirildi');
         }
     }
-
     resetModel() {
         if (this.model) {
-            this.model.position.set(0, 0, 0);
-            this.model.rotation.set(0, 0, 0);
+            this.removeCurrentModel();
+            this.loadCurrentModel();
             console.log('Model pozisyonu sıfırlandı');
         }
     }
@@ -566,3 +637,4 @@ class ModelViewer {
 
 // Başlat
 const modelViewer = new ModelViewer();
+

@@ -9,6 +9,7 @@
             margin: 0; 
             background: #2C2C2C; 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden; 
         }
         * { box-sizing: border-box; }
         .layout { display: flex; height: 100vh; width: 100vw; }
@@ -21,10 +22,12 @@
             transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             overflow: hidden;
             position: relative;
+            z-index: 1000; 
         }
         .sidebar.collapsed { 
             width: 0; 
             border-right: none;
+            padding: 60px 0 0 0; 
         }
         .sidebar .menu-item {
             display: block;
@@ -37,7 +40,7 @@
             text-transform: uppercase;
             letter-spacing: 1px;
             border-bottom: 1px solid #1a1a1a;
-            transition: color 0.2s ease;
+            transition: color 0.2s ease, background 0.2s ease; 
             text-align: center;
             white-space: nowrap;
             min-width: 280px;
@@ -50,8 +53,27 @@
             color: #FFFFFF;
             background: rgba(255, 255, 255, 0.1);
         }
-        .viewer { flex: 1; position: relative; overflow: hidden; background: #2C2C2C; }
-        .viewer canvas { display: block; position: absolute; inset: 0; }
+        
+        .content-area {
+            flex: 1;
+            position: relative;
+            height: 100vh;
+            overflow: hidden; 
+        }
+
+        .viewer { 
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            background: #2C2C2C; 
+        }
+        .viewer canvas { 
+            display: block; 
+            position: absolute; 
+            inset: 0; 
+        }
+
         .menu-toggle {
             position: fixed;
             top: 20px;
@@ -91,52 +113,559 @@
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             transform-origin: center;
         }
-        .menu-toggle .hamburger-lines span:nth-child(1) {
-            transform: translateY(0) rotate(0deg);
+        
+        .sidebar.collapsed + .content-area .menu-toggle .hamburger-lines span:nth-child(1) {
+            transform: translateY(0) rotate(0);
         }
-        .menu-toggle .hamburger-lines span:nth-child(2) {
+        .sidebar.collapsed + .content-area .menu-toggle .hamburger-lines span:nth-child(2) {
             opacity: 1;
         }
-        .menu-toggle .hamburger-lines span:nth-child(3) {
-            transform: translateY(0) rotate(0deg);
+        .sidebar.collapsed + .content-area .menu-toggle .hamburger-lines span:nth-child(3) {
+            transform: translateY(0) rotate(0);
         }
-        .sidebar:not(.collapsed) ~ .menu-toggle .hamburger-lines span:nth-child(1) {
+        .sidebar:not(.collapsed) + .content-area .menu-toggle .hamburger-lines span:nth-child(1) {
             transform: translateY(7px) rotate(45deg);
         }
-        .sidebar:not(.collapsed) ~ .menu-toggle .hamburger-lines span:nth-child(2) {
+        .sidebar:not(.collapsed) + .content-area .menu-toggle .hamburger-lines span:nth-child(2) {
             opacity: 0;
         }
-        .sidebar:not(.collapsed) ~ .menu-toggle .hamburger-lines span:nth-child(3) {
+        .sidebar:not(.collapsed) + .content-area .menu-toggle .hamburger-lines span:nth-child(3) {
             transform: translateY(-7px) rotate(-45deg);
         }
+        
+        /* --- YENİ: Teams Sayfası Stilleri (Carousel için güncellendi) --- */
+        #teams-page-container {
+            width: 100%;
+            height: 100vh;
+            /* DEĞİŞTİ: Dikey scroll'u tamamen kapat */
+            overflow: hidden; 
+            background: linear-gradient(to bottom, #1a1a1a, #000000); 
+            color: #f0f0f0;
+            /* DEĞİŞTİ: Padding'i sadece üstten ver */
+            padding: 40px 0; 
+            box-sizing: border-box;
+            display: none; 
+            position: relative; 
+            z-index: 1;
+        }
+
+        #teams-page-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('https://www.formula1.com/content/dam/fom-website/general/latest/bg-f1-black.jpg'); 
+            background-size: cover;
+            background-position: center;
+            opacity: 0.15; 
+            z-index: -1;
+            filter: grayscale(100%); 
+        }
+
+        #teams-page-container h2 {
+            text-align: center;
+            font-size: 3rem; 
+            margin-bottom: 50px; 
+            margin-top: 20px;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255,255,255,0.2); 
+            position: relative;
+            z-index: 2;
+        }
+
+        /* DEĞİŞTİ: Grid'den Flex Carousel'a geçiş */
+        .teams-grid {
+            /* Grid yerine flex kullanıyoruz */
+            display: flex; 
+            align-items: center; /* Kartları dikeyde ortala */
+            
+            /* DEĞİŞTİ: Yatayda hareket edecek bir şerit oluştur */
+            position: absolute;
+            top: 0;
+            left: 0; /* JS ile hesaplanacak X pozisyonu için başlangıç */
+            height: 100%; /* Dikey ortalama için */
+            
+            /* YENİ: Akıcı geçiş için CSS transition */
+            transition: transform 0.8s cubic-bezier(0.165, 0.84, 0.44, 1);
+            z-index: 2;
+            
+            /* grid-template-columns, gap, justify-content kaldırıldı */
+        }
+
+        /* DEĞİŞTİ: Kart konteyneri artık flex item */
+        .team-card-container {
+            width: 450px; 
+            height: 550px; 
+            perspective: 1500px;
+            /* YENİ: Flex item'ın küçülmesini engelle */
+            flex-shrink: 0; 
+            /* YENİ: Kartlar arası boşluk (margin ile) */
+            margin: 0 25px; 
+            /* YENİ: Tıklanabilir olduğunu belirt */
+            cursor: pointer;
+            /* YENİ: Aktif olmayan kartları küçültmek için transition */
+            transition: transform 0.7s ease, opacity 0.7s ease;
+        }
+
+        /* YENİ: Aktif olmayan (yandaki) kartlar için stil */
+        .team-card-container.inactive {
+            transform: scale(0.85); /* Küçült */
+            opacity: 0.6; /* Soluklaştır */
+        }
+        .team-card-container.inactive:hover {
+            transform: scale(0.9); /* Üzerine gelince hafif büyüt */
+            opacity: 0.8;
+        }
+
+        /* DEĞİŞTİ: Kartın dönme animasyonu artık CSS sınıfı ile tetiklenecek */
+        .team-card {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            /* DEĞİŞTİ: Dönüş için transition'ı buraya ekliyoruz */
+            transition: transform 0.7s cubic-bezier(0.65, 0.05, 0.36, 1);
+        }
+        
+        /* YENİ: Kart döndüğünde uygulanacak sınıf */
+        .team-card.is-flipped {
+            transform: rotateY(180deg);
+        }
+
+        /* Kart kenar (kalınlık) stili - DEĞİŞİKLİK YOK */
+        .card-face-side {
+            position: absolute;
+            width: 20px; 
+            height: 100%;
+            background-color: #3a3a3a; 
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%) rotateY(90deg); 
+            transform-origin: center center;
+            backface-visibility: hidden;
+            border-radius: 5px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+        }
+
+        /* Kart yüz stilleri - DEĞİŞİKLİK YOK */
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden; 
+            background-color: #2c2c2c;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            overflow: hidden; 
+            border: 1px solid #444;
+            display: flex; 
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: stretch;
+            padding-bottom: 20px; 
+        }
+
+        .card-front {
+            transform: translateZ(10px); 
+        }
+
+        .card-back {
+            transform: rotateY(180deg) translateZ(10px); 
+        }
+
+        /* Kart içeriği stilleri (header, body, logo vb.) - DEĞİŞİKLİK YOK */
+        .card-header {
+            padding: 25px; 
+            display: flex;
+            align-items: center;
+            gap: 20px; 
+            border-bottom: 1px solid rgba(255,255,255,0.1); 
+            background-color: rgba(0,0,0,0.3); 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .team-logo {
+            width: 70px; 
+            height: 70px;
+            object-fit: contain; 
+            filter: drop-shadow(0 0 5px rgba(255,255,255,0.1)); 
+        }
+        .card-header h3 {
+            margin: 0;
+            font-size: 1.8rem; 
+            color: #fff;
+            font-weight: 700; 
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .card-body {
+            padding: 25px;
+            font-size: 1.05rem; 
+            line-height: 1.8; 
+            flex-grow: 1; 
+        }
+        .card-body p {
+            margin: 15px 0;
+            display: flex; 
+            align-items: baseline;
+            gap: 10px;
+        }
+        .card-body strong {
+            color: #ccc;
+            min-width: 120px; 
+            display: inline-block;
+            font-weight: 600;
+        }
+        .card-body ul {
+            list-style: none;
+            padding-left: 0;
+            margin-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 15px;
+        }
+        .card-body li {
+            padding: 8px 0;
+            border-bottom: 1px dashed rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .card-body li:last-child {
+            border-bottom: none;
+        }
+        .card-body li::before {
+            content: '🏎️'; 
+            margin-right: 5px;
+            font-size: 0.9em;
+        }
+
+        /* DEĞİŞTİ: Scroll-hint (kaydırma ipucu) artık tıklama ipucu */
+        .scroll-hint {
+            text-align: center;
+            font-style: italic;
+            color: #888;
+            margin-top: auto; 
+            padding-top: 15px;
+            border-top: 1px dashed rgba(255,255,255,0.05);
+            font-size: 0.95rem;
+            opacity: 0.8;
+            /* YENİ: Metin güncellendi */
+            content: '(Detaylar için karta tıklayın)'; 
+        }
+        .scroll-hint::before {
+             content: '(Detaylar için karta tıklayın)';
+        }
+
+
+        /* Kart arka yüz stilleri - DEĞİŞİKLİK YOK */
+        .card-back .card-header h3 {
+             width: 100%;
+             text-align: center;
+        }
+
+        .driver-profiles-container {
+            flex-grow: 1; 
+            display: flex;
+            flex-direction: column;
+            justify-content: space-evenly; 
+            padding: 20px 0;
+        }
+
+        .driver-profile {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 15px 25px; 
+            border-bottom: 1px solid rgba(255,255,255,0.08); 
+            transition: background-color 0.2s ease;
+        }
+        .driver-profile:hover {
+            background-color: rgba(255,255,255,0.05);
+        }
+        .driver-profile:last-child {
+            border-bottom: none;
+        }
+        .driver-profile img {
+            width: 90px; 
+            height: 90px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid rgba(255,255,255,0.2); 
+            box-shadow: 0 0 15px rgba(0,0,0,0.4);
+        }
+        .driver-profile div {
+            flex: 1;
+        }
+        .driver-profile h4 {
+            margin: 0 0 8px 0;
+            color: #fff;
+            font-size: 1.5rem; 
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .driver-profile p {
+            margin: 4px 0;
+            font-size: 1rem; 
+            color: #ccc;
+            display: flex; 
+            align-items: baseline;
+            gap: 10px;
+        }
+        .driver-profile p strong {
+             color: #999;
+             min-width: 80px; 
+             display: inline-block;
+             font-weight: 600;
+        }
+
+        /* Renkler - DEĞİŞİKLİK YOK */
+        .mercedes-color { background-color: #00A19B !important; } 
+        .ferrari-color { background-color: #D90000 !important; } 
+        .redbull-color { background-color: #0F265D !important; } 
+        .mclaren-color { background-color: #FF8700 !important; } 
+
     </style>
 </head>
 <body>
     <div class="layout">
         <aside class="sidebar collapsed" id="sidebar">
-            <a href="#" class="menu-item active">Görünümü Sıfırla</a>
-            <a href="#" class="menu-item">Wireframe Aç/Kapat</a>
-            <a href="#" class="menu-item">Modeli Sıfırla</a>
-            <a href="#" class="menu-item">Ayarlar</a>
-            <a href="#" class="menu-item">Yardım</a>
+            <!-- JS tarafından doldurulacak -->
         </aside>
-        <main id="viewer" class="viewer">
-        </main>
-        <button class="menu-toggle" id="menuToggle">
-            <div class="hamburger-lines">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
-        </button>
-    </div>
 
-    <!-- Three.js CDN -->
+        <div class="content-area">
+            
+            <main id="viewer" class="viewer">
+                <!-- JS tarafından doldurulacak -->
+            </main>
+
+            <!-- Teams Sayfası -->
+            <div id="teams-page-container">
+                <h2>Formula 1 Takımları</h2>
+                
+                <!-- DEĞİŞTİ: Bu artık yatay kayan bir şerit -->
+                <div class="teams-grid">
+                    
+                    <!-- KART 1: Mercedes -->
+                    <div class="team-card-container" id="team-container-1">
+                        <div class="team-card" id="team-card-1">
+                            <div class="card-face-side" style="background-color: #00A19B;"></div>
+                            <div class="card-face card-front">
+                                <div class="card-header mercedes-color">
+                                    <img src="https://www.formula1.com/content/dam/fom-website/teams/2024/mercedes.png" alt="Mercedes Logo" class="team-logo">
+                                    <h3>Mercedes-AMG Petronas</h3>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Kuruluş:</strong> 1954 (orijinal), 2010 (yeniden giriş)</p>
+                                    <p><strong>Merkez:</strong> Brackley, Birleşik Krallık</p>
+                                    <p><strong>Takım Patronu:</strong> Toto Wolff</p>
+                                    <p><strong>Motor Sağlayıcı:</strong> Mercedes</p>
+                                    <p><strong>Şampiyonluklar:</strong> 8 Yapıcılar (En Son: 2021)</p>
+                                    <ul>
+                                        <li>Lewis Hamilton</li>
+                                        <li>George Russell</li>
+                                    </ul>
+                                    <p class="scroll-hint">(Detaylar için karta tıklayın)</p>
+                                </div>
+                            </div>
+                            <div class="card-face card-back">
+                                <div class="card-header mercedes-color">
+                                    <h3>Güncel Pilotlar</h3>
+                                </div>
+                                <div class="driver-profiles-container">
+                                    <div class="driver-profile">
+                                        <img src="https://www.formula1.com/content/dam/fom-website/drivers/L/LEWHAM01_Lewis_Hamilton/lewham01.png.transform/1col/image.png" alt="Lewis Hamilton">
+                                        <div>
+                                            <h4>Lewis Hamilton</h4>
+                                            <p><strong>Ülke:</strong> İngiltere</p>
+                                            <p><strong>Numara:</strong> 44</p>
+                                            <p><strong>Şampiyonluk:</strong> 7</p>
+                                        </div>
+                                    </div>
+                                    <div class="driver-profile">
+                                        <img src="https://www.formula1.com/content/dam/fom-website/drivers/G/GEORUS01_George_Russell/georus01.png.transform/1col/image.png" alt="George Russell">
+                                        <div>
+                                            <h4>George Russell</h4>
+                                            <p><strong>Ülke:</strong> İngiltere</p>
+                                            <p><strong>Numara:</strong> 63</p>
+                                            <p><strong>Şampiyonluk:</strong> 0</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KART 2: Ferrari -->
+                    <div class="team-card-container" id="team-container-2">
+                        <div class="team-card" id="team-card-2">
+                             <div class="card-face-side" style="background-color: #D90000;"></div>
+                            <div class="card-face card-front">
+                                <div class="card-header ferrari-color">
+                                    <img src="https://www.formula1.com/content/dam/fom-website/teams/2024/ferrari.png" alt="Ferrari Logo" class="team-logo">
+                                    <h3>Scuderia Ferrari</h3>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Kuruluş:</strong> 1929 (Scuderia), 1950 (F1)</p>
+                                    <p><strong>Merkez:</strong> Maranello, İtalya</p>
+                                    <p><strong>Takım Patronu:</strong> Fred Vasseur</p>
+                                    <p><strong>Motor Sağlayıcı:</strong> Ferrari</p>
+                                    <p><strong>Şampiyonluklar:</strong> 16 Yapıcılar (En Son: 2008)</p>
+                                    <ul>
+                                        <li>Charles Leclerc</li>
+                                        <li>Carlos Sainz</li>
+                                    </ul>
+                                    <p class="scroll-hint">(Detaylar için karta tıklayın)</p>
+                                </div>
+                            </div>
+                            <div class="card-face card-back">
+                                <div class="card-header ferrari-color">
+                                    <h3>Güncel Pilotlar</h3>
+                                </div>
+                                <div class="driver-profiles-container">
+                                    <div class="driver-profile">
+                                        <img src="https://www.formula1.com/content/dam/fom-website/drivers/C/CHALEC01_Charles_Leclerc/chalec01.png.transform/1col/image.png" alt="Charles Leclerc">
+                                        <div>
+                                            <h4>Charles Leclerc</h4>
+                                            <p><strong>Ülke:</strong> Monako</p>
+                                            <p><strong>Numara:</strong> 16</p>
+                                            <p><strong>Şampiyonluk:</strong> 0</p>
+                                        </div>
+                                    </div>
+                                    <div class="driver-profile">
+                                        <img src="https://www.formula1.com/content/dam/fom-website/drivers/C/CARSAI01_Carlos_Sainz/carsai01.png.transform/1col/image.png" alt="Carlos Sainz">
+                                        <div>
+                                            <h4>Carlos Sainz</h4>
+                                            <p><strong>Ülke:</strong> İspanya</p>
+                                            <p><strong>Numara:</strong> 55</p>
+                                            <p><strong>Şampiyonluk:</strong> 0</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KART 3: Red Bull -->
+                    <div class="team-card-container" id="team-container-3">
+                        <div class="team-card" id="team-card-3">
+                             <div class="card-face-side" style="background-color: #0F265D;"></div>
+                            <div class="card-face card-front">
+                                <div class="card-header redbull-color">
+                                    <img src="https://www.formula1.com/content/dam/fom-website/teams/2024/red-bull-racing.png" alt="Red Bull Logo" class="team-logo">
+                                    <h3>Oracle Red Bull Racing</h3>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Kuruluş:</strong> 2005</p>
+                                    <p><strong>Merkez:</strong> Milton Keynes, Birleşik Krallık</p>
+                                    <p><strong>Takım Patronu:</strong> Christian Horner</p>
+                                    <p><strong>Motor Sağlayıcı:</strong> Honda RBPT</p>
+                                    <p><strong>Şampiyonluklar:</strong> 6 Yapıcılar (En Son: 2023)</p>
+                                    <ul>
+                                        <li>Max Verstappen</li>
+                                        <li>Sergio Pérez</li>
+                                    </ul>
+                                    <p class="scroll-hint">(Detaylar için karta tıklayın)</p>
+                                </div>
+                            </div>
+                            <div class="card-face card-back">
+                                <div class="card-header redbull-color">
+                                    <h3>Güncel Pilotlar</h3>
+                                </div>
+                                <div class="driver-profiles-container">
+                                    <div class="driver-profile">
+                                        <img src="https://www.formula1.com/content/dam/fom-website/drivers/M/MAXVER01_Max_Verstappen/maxver01.png.transform/1col/image.png" alt="Max Verstappen">
+                                        <div>
+                                            <h4>Max Verstappen</h4>
+                                            <p><strong>Ülke:</strong> Hollanda</p>
+                                            <p><strong>Numara:</strong> 1</p>
+                                            <p><strong>Şampiyonluk:</strong> 3</p>
+                                        </div>
+                                    </div>
+                                    <div class="driver-profile">
+                                        <img src="https://www.formula1.com/content/dam/fom-website/drivers/S/SERPER01_Sergio_Perez/serper01.png.transform/1col/image.png" alt="Sergio Pérez">
+                                        <div>
+                                            <h4>Sergio Pérez</h4>
+                                            <p><strong>Ülke:</strong> Meksika</p>
+                                            <p><strong>Numara:</strong> 11</p>
+                                            <p><strong>Şampiyonluk:</strong> 0</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KART 4: McLaren -->
+                    <div class="team-card-container" id="team-container-4">
+                        <div class="team-card" id="team-card-4">
+                             <div class="card-face-side" style="background-color: #FF8700;"></div>
+                            <div class="card-face card-front">
+                                <div class="card-header mclaren-color">
+                                    <img src="https://www.formula1.com/content/dam/fom-website/teams/2024/mclaren.png" alt="McLaren Logo" class="team-logo">
+                                    <h3>McLaren Formula 1 Team</h3>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Kuruluş:</strong> 1963</p>
+                                    <p><strong>Merkez:</strong> Woking, Birleşik Krallık</p>
+                                    <p><strong>Takım Patronu:</strong> Andrea Stella</p>
+                                    <p><strong>Motor Sağlayıcı:</strong> Mercedes</p>
+                                    <p><strong>Şampiyonluklar:</strong> 8 Yapıcılar (En Son: 1998)</p>
+                                    <ul>
+                                        <li>Lando Norris</li>
+                                        <li>Oscar Piastri</li>
+                                    </ul>
+                                    <p class="scroll-hint">(Detaylar için karta tıklayın)</p>
+                                </div>
+                            </div>
+                            <div class="card-face card-back">
+                                <div class="card-header mclaren-color">
+                                    <h3>Güncel Pilotlar</h3>
+                                </div>
+                                <div class="driver-profiles-container">
+                                    <div class="driver-profile">
+                                        <img src="https://www.formula1.com/content/dam/fom-website/drivers/L/LANDOR01_Lando_Norris/landor01.png.transform/1col/image.png" alt="Lando Norris">
+                                        <div>
+                                            <h4>Lando Norris</h4>
+                                            <p><strong>Ülke:</strong> İngiltere</p>
+                                            <p><strong>Numara:</strong> 4</p>
+                                            <p><strong>Şampiyonluk:</strong> 0</p>
+                                        </div>
+                                    </div>
+                                    <div class="driver-profile">
+                                        <img src="https://www.formula1.com/content/dam/fom-website/drivers/O/OSCPIA01_Oscar_Piastri/oscpia01.png.transform/1col/image.png" alt="Oscar Piastri">
+                                        <div>
+                                            <h4>Oscar Piastri</h4>
+                                            <p><strong>Ülke:</strong> Avustralya</p>
+                                            <p><strong>Numara:</strong> 81</p>
+                                            <p><strong>Şampiyonluk:</strong> 0</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div> 
+            </div> 
+
+            <button class="menu-toggle" id="menuToggle">
+                <div class="hamburger-lines">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </button>
+
+        </div> 
+    </div> 
+
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+                "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/"
             }
         }
     </script>
@@ -144,3 +673,4 @@
     <script type="module" src="app.js"></script>
 </body>
 </html>
+
